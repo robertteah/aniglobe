@@ -66,8 +66,22 @@ export default function Player({
   const artRef = useRef(null);
   const leftAtRef = useRef(0);
   const boundKeydownRef = useRef(null);
-  const proxy = import.meta.env.VITE_PROXY_URL;
-  const m3u8proxy = import.meta.env.VITE_M3U8_PROXY_URL?.split(",") || [];
+  const proxyBase = import.meta.env.VITE_PROXY_URL;
+  const m3u8ProxyEnv = import.meta.env.VITE_M3U8_PROXY_URL;
+  const proxyBaseUri = proxyBase
+    ? `${proxyBase.replace(/\/$/, "")}/m3u8-proxy`
+    : null;
+  const m3u8proxy = (m3u8ProxyEnv ? m3u8ProxyEnv.split(",") : []).filter(Boolean);
+
+  const buildProxyUrl = (base, url, referer) => {
+    if (!base) return url;
+    const hasUrlParam = base.includes("url=");
+    const prefix = hasUrlParam
+      ? base
+      : `${base}${base.includes("?") ? "&" : "?"}url=`;
+    const refererParam = referer ? `&referer=${encodeURIComponent(referer)}` : "";
+    return `${prefix}${encodeURIComponent(url)}${refererParam}`;
+  };
   const [currentEpisodeIndex, setCurrentEpisodeIndex] = useState(
     episodes?.findIndex((episode) => episode.id.match(/ep=(\d+)/)?.[1] === episodeId)
   );
@@ -251,10 +265,10 @@ export default function Player({
   useEffect(() => {
     if (!streamUrl || !artRef.current) return;
 
-    const iframeUrl = streamInfo?.streamingLink?.iframe;
-    const headers = {
-      referer: iframeUrl ? new URL(iframeUrl).origin + "/" : window.location.origin + "/",
-    };
+    const referer =
+      streamInfo?.headers?.Referer ||
+      streamInfo?.headers?.referer ||
+      window.location.origin + "/";
 
     const container = artRef.current;
     let fullscreenRefocusTimeout = null;
@@ -271,11 +285,11 @@ export default function Player({
     }
 
     const art = new Artplayer({
-      url:
-        m3u8proxy[Math.floor(Math.random() * m3u8proxy?.length)] +
-        encodeURIComponent(streamUrl) +
-        "&headers=" +
-        encodeURIComponent(JSON.stringify(headers)),
+      url: buildProxyUrl(
+        (m3u8proxy.length ? m3u8proxy[Math.floor(Math.random() * m3u8proxy.length)] : proxyBaseUri),
+        streamUrl,
+        referer
+      ),
       container: artRef.current,
       type: "m3u8",
       autoplay: autoPlay,
@@ -483,13 +497,10 @@ export default function Player({
         art.layers[website_name].style.opacity = 0;
       }, 2000);
 
-      const subs = (subtitles || []).map((s) => ({ ...s }));
-
-      for (const sub of subs) {
-        const encodedUrl = encodeURIComponent(sub.file);
-        const encodedHeaders = encodeURIComponent(JSON.stringify(headers));
-        sub.file = `${proxy}${encodedUrl}&headers=${encodedHeaders}`;
-      }
+      const subs = (subtitles || []).map((s) => ({
+        ...s,
+        file: buildProxyUrl(proxyBaseUri, s.file, referer),
+      }));
 
       const defaultSubtitle = subs?.find((sub) => sub.label.toLowerCase() === "english");
       if (defaultSubtitle) {
@@ -540,7 +551,7 @@ export default function Player({
       if (thumbnail) {
         art.plugins.add(
           artplayerPluginVttThumbnail({
-            vtt: `${proxy}${thumbnail}`,
+            vtt: buildProxyUrl(proxyBaseUri, thumbnail, referer),
           })
         );
       }

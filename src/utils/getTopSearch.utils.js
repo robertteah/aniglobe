@@ -1,12 +1,9 @@
 import axios from "axios";
+import { getApiBase } from "./kitsuneAdapter";
 
 const getTopSearch = async () => {
   try {
-    // let workerUrls = import.meta.env.VITE_WORKER_URL?.split(",");
-    // let baseUrl = workerUrls?.length
-    //   ? workerUrls[Math.floor(Math.random() * workerUrls.length)]
-    //   : import.meta.env.VITE_API_URL;
-    let baseUrl = import.meta.env.VITE_API_URL;
+    let baseUrl = getApiBase();
     const storedData = localStorage.getItem("topSearch");
     if (storedData) {
       const { data, timestamp } = JSON.parse(storedData);
@@ -14,8 +11,12 @@ const getTopSearch = async () => {
         return data;
       }
     }
-    const { data } = await axios.get(`${baseUrl}/top-search`);
-    const results = data?.results || [];
+    const { data } = await axios.get(`${baseUrl}/home`);
+    const trending = data?.data?.trendingAnimes || [];
+    const results = trending.slice(0, 10).map((item) => ({
+      title: item.name,
+      link: `/${item.id}`,
+    }));
     if (results.length) {
       localStorage.setItem(
         "topSearch",

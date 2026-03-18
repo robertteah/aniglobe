@@ -1,10 +1,17 @@
 import axios from "axios";
+import {
+  getApiBase,
+  mapSpotlightItem,
+  mapTrendingItem,
+  mapTopTenList,
+  mapAnimeCard,
+} from "./kitsuneAdapter";
 
 const CACHE_KEY = "homeInfoCache";
 const CACHE_DURATION = 24 * 60 * 60 * 1000;
 
 export default async function getHomeInfo() {
-  const api_url = import.meta.env.VITE_API_URL;
+  const api_url = getApiBase();
   const currentTime = Date.now();
 
   try {
@@ -25,41 +32,48 @@ export default async function getHomeInfo() {
     localStorage.removeItem(CACHE_KEY);
   }
 
-  const response = await axios.get(api_url);
-  const results = response?.data?.results;
+  const response = await axios.get(`${api_url}/home`);
+  const results = response?.data?.data;
 
   if (!results || typeof results !== "object") {
     return null;
   }
 
-  const {
-    spotlights = [],
-    trending = [],
-    topTen: topten = [],
-    today: todaySchedule = [],
-    topAiring: top_airing = [],
-    mostPopular: most_popular = [],
-    mostFavorite: most_favorite = [],
-    latestCompleted: latest_completed = [],
-    latestEpisode: latest_episode = [],
-    topUpcoming: top_upcoming = [],
-    recentlyAdded: recently_added = [],
-    genres = [],
-  } = results;
-
   const finalData = {
-    spotlights,
-    trending,
-    topten,
-    todaySchedule,
-    top_airing,
-    most_popular,
-    most_favorite,
-    latest_completed,
-    latest_episode,
-    top_upcoming,
-    recently_added,
-    genres,
+    spotlights: (results.spotlightAnimes || [])
+      .map(mapSpotlightItem)
+      .filter(Boolean),
+    trending: (results.trendingAnimes || [])
+      .map(mapTrendingItem)
+      .filter(Boolean),
+    topten: {
+      today: mapTopTenList(results.top10Animes?.today || []),
+      week: mapTopTenList(results.top10Animes?.week || []),
+      month: mapTopTenList(results.top10Animes?.month || []),
+    },
+    todaySchedule: [],
+    top_airing: (results.topAiringAnimes || [])
+      .map(mapAnimeCard)
+      .filter(Boolean),
+    most_popular: (results.mostPopularAnimes || [])
+      .map(mapAnimeCard)
+      .filter(Boolean),
+    most_favorite: (results.mostFavoriteAnimes || [])
+      .map(mapAnimeCard)
+      .filter(Boolean),
+    latest_completed: (results.latestCompletedAnimes || [])
+      .map(mapAnimeCard)
+      .filter(Boolean),
+    latest_episode: (results.latestEpisodeAnimes || [])
+      .map(mapAnimeCard)
+      .filter(Boolean),
+    top_upcoming: (results.topUpcomingAnimes || [])
+      .map(mapAnimeCard)
+      .filter(Boolean),
+    recently_added: (results.latestEpisodeAnimes || [])
+      .map(mapAnimeCard)
+      .filter(Boolean),
+    genres: results.genres || [],
   };
 
   if (Object.keys(finalData).length === 0) {

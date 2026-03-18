@@ -21,10 +21,13 @@ function Servers({
 
   useEffect(() => {
     const savedServerName = localStorage.getItem("server_name");
+    const savedServerType = localStorage.getItem("server_type");
 
     if (savedServerName) {
       const matchingServer = servers?.find(
-        (server) => server.serverName === savedServerName
+        (server) =>
+          server.serverName === savedServerName &&
+          (!savedServerType || server.type === savedServerType)
       );
 
       if (matchingServer) {

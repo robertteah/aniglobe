@@ -88,7 +88,7 @@ function Voiceactor({ animeInfo, className }) {
       </div>
       {showVoiceActors && (
         <VoiceactorList
-          id={animeInfo.id}
+          items={animeInfo.charactersVoiceActors}
           isOpen={showVoiceActors}
           onClose={() => setShowVoiceActors(false)}
         />

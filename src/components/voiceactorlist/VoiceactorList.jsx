@@ -1,28 +1,20 @@
-import { useState, useEffect } from "react";
-import {
-  faAngleDoubleLeft,
-  faAngleDoubleRight,
-  faChevronLeft,
-  faChevronRight,
-} from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import fetchVoiceActorInfo from "@/src/utils/getVoiceActor.utils";
+import { useState, useEffect, useMemo } from "react";
 import VoiceActorlistLoader from "../Loader/VoiceActorlist.loader";
-import { useNavigate } from "react-router-dom";
-import Error from "../error/Error";
 import {
   cleanupScrollbar,
   toggleScrollbar,
 } from "@/src/helper/toggleScrollbar";
 import PageSlider from "../pageslider/PageSlider";
 
-function VoiceactorList({ id, isOpen, onClose }) {
+function VoiceactorList({ items = [], isOpen, onClose }) {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [error, setError] = useState(null);
-  const [VoiceactorList, setVoiceactorList] = useState([]);
-  const navigate = useNavigate();
+  const pageSize = 20;
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const pagedItems = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return items.slice(start, start + pageSize);
+  }, [items, page]);
 
   useEffect(() => {
     toggleScrollbar(isOpen);
@@ -32,28 +24,10 @@ function VoiceactorList({ id, isOpen, onClose }) {
   }, [isOpen]);
 
   useEffect(() => {
-    const fetchCategoryInfo = async () => {
-      setLoading(true);
-      try {
-        const data = await fetchVoiceActorInfo(id, page);
-        setVoiceactorList(data.data);
-        setTotalPages(data.totalPages);
-        setLoading(false);
-      } catch (err) {
-        setError(err);
-        console.error("Error fetching category info:", err);
-      }
-    };
-    fetchCategoryInfo();
-  }, [page]);
-  if (error) {
-    navigate("/error-page");
-    return <Error />;
-  }
-  if (!VoiceactorList) {
-    navigate("/404-not-found-page");
-    return null;
-  }
+    setPage(1);
+    setLoading(false);
+  }, [items]);
+
   return (
     <div
       className="fixed top-0 left-0 w-screen h-screen overflow-y-auto bg-black/80 z-50 flex justify-center py-10  max-[575px]:py-3"
@@ -80,7 +54,7 @@ function VoiceactorList({ id, isOpen, onClose }) {
           <VoiceActorlistLoader />
         ) : (
           <div className="w-full grid grid-cols-2 gap-4 mt-5 max-[1000px]:grid-cols-1">
-            {VoiceactorList.map((item, index) => (
+            {pagedItems.map((item, index) => (
               <div
                 key={index}
                 className="flex p-4 items-center justify-between py-2 bg-[#444445] rounded-lg h-[80px] max-[480px]:p-1 max-[480px]:bg-transparent max-[480px]:rounded-none max-[480px]:border-b-[1px] border-dotted max-[480px]:h-[60px] max-[480px]:pb-4"

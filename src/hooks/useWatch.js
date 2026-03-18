@@ -124,39 +124,7 @@ export const useWatch = (animeId, initialEpisodeId) => {
         const data = await getServers(animeId, episodeId, { signal: controller.signal });
         if (!mounted) return;
 
-        const filteredServers = data?.filter(
-          (server) =>
-            server.serverName === "HD-1" ||
-            server.serverName === "HD-2" ||
-            // server.serverName === "HD-3" ||
-            server.serverName === "Vidstreaming" ||
-            server.serverName === "Vidcloud" ||
-            server.serverName === "DouVideo"
-        ) || [];
-
-        let serversList = [...filteredServers];
-
-        if (serversList.some((s) => s.type === "sub")) {
-          if (!serversList.some((s) => s.serverName === "HD-4" && s.type === "sub")) {
-            serversList.push({
-              type: "sub",
-              data_id: "69696968",
-              server_id: "41",
-              serverName: "HD-4",
-            });
-          }
-        }
-
-        if (serversList.some((s) => s.type === "dub")) {
-          if (!serversList.some((s) => s.serverName === "HD-4" && s.type === "dub")) {
-            serversList.push({
-              type: "dub",
-              data_id: "96969696",
-              server_id: "42",
-              serverName: "HD-4",
-            });
-          }
-        }
+        let serversList = Array.isArray(data) ? data : [];
 
         const savedServerName = localStorage.getItem("server_name");
         const savedServerType = localStorage.getItem("server_type");
@@ -164,11 +132,7 @@ export const useWatch = (animeId, initialEpisodeId) => {
         const initialServer =
           serversList.find(s => s.serverName === savedServerName && s.type === savedServerType) ||
           serversList.find(s => s.serverName === savedServerName) ||
-          serversList.find(
-            s =>
-              s.type === savedServerType &&
-              ["HD-1", "HD-2", "HD-3", "HD-4", "Vidstreaming", "Vidcloud", "DouVideo"].includes(s.serverName)
-          ) ||
+          serversList.find((s) => s.type === savedServerType) ||
           serversList[0];
 
         setServers(serversList);
@@ -224,22 +188,26 @@ export const useWatch = (animeId, initialEpisodeId) => {
           const data = await getStreamInfo(
             animeId,
             episodeId,
-            server.serverName.toLowerCase()==="hd-3"?"hd-1":server.serverName.toLowerCase(),
+            server.serverName,
             server.type.toLowerCase()
           );
           setStreamInfo(data);
-          setStreamUrl(data?.streamingLink?.link?.file || null);
-          setIntro(data?.streamingLink?.intro || null);
-          setOutro(data?.streamingLink?.outro || null);
+          const preferredSource =
+            data?.sources?.find(
+              (source) =>
+                source?.isM3U8 ||
+                (typeof source?.type === "string" &&
+                  source.type.toLowerCase().includes("m3u8")) ||
+                (typeof source?.type === "string" &&
+                  source.type.toLowerCase().includes("hls"))
+            ) || data?.sources?.[0];
+          setStreamUrl(preferredSource?.url || null);
+          setIntro(data?.intro || null);
+          setOutro(data?.outro || null);
           const subtitles =
-            data?.streamingLink?.tracks
-              ?.filter((track) => track.kind === "captions")
-              .map(({ file, label }) => ({ file, label })) || [];
+            data?.subtitles?.map(({ url, lang }) => ({ file: url, label: lang })) || [];
           setSubtitles(subtitles);
-          const thumbnailTrack = data?.streamingLink?.tracks?.find(
-            (track) => track.kind === "thumbnails" && track.file
-          );
-          if (thumbnailTrack) setThumbnail(thumbnailTrack.file);
+          setThumbnail(null);
         } else {
           setError("No server found with the activeServerId.");
         }
