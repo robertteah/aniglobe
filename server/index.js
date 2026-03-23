@@ -62,22 +62,44 @@ app.get(
       return res.status(400).json({ error: "animeEpisodeId is required" });
     }
 
-    let data;
-    try {
-      data = await hianime.getEpisodeSources(
-        decodeURIComponent(animeEpisodeId),
-        server,
-        category
-      );
-    } catch (err) {
-      if (!server) throw err;
-      data = await hianime.getEpisodeSources(
-        decodeURIComponent(animeEpisodeId),
-        undefined,
-        category
-      );
+    const serverMap = {
+      "vidsrc": "hd-1",
+      "t-cloud": "hd-2",
+      "megacloud": "hd-1",
+      "rapidcloud": "hd-2",
+      "upcloud": "hd-2",
+      "hd-1": "hd-1",
+      "hd-2": "hd-2",
+      "streamsb": "streamsb",
+      "streamtape": "streamtape",
+    };
+
+    const decodedEpisodeId = decodeURIComponent(animeEpisodeId);
+    const mapped = serverMap[server] || undefined;
+    const fallbackOrder = [
+      mapped,
+      "hd-1",
+      "hd-2",
+      "streamtape",
+      "streamsb",
+      undefined,
+    ].filter((value, index, arr) => value !== undefined && arr.indexOf(value) === index);
+
+    let lastError = null;
+    for (const candidate of fallbackOrder) {
+      try {
+        const data = await hianime.getEpisodeSources(
+          decodedEpisodeId,
+          candidate,
+          category
+        );
+        return res.json({ data, serverUsed: candidate || "auto" });
+      } catch (err) {
+        lastError = err;
+      }
     }
-    res.json({ data });
+
+    throw lastError;
   })
 );
 
