@@ -15,6 +15,8 @@ import Search from "./pages/search/Search";
 import Watch from "./pages/watch/Watch";
 import Producer from "./components/producer/Producer";
 import SplashScreen from "./components/splashscreen/SplashScreen";
+import AuthBootstrap from "./components/auth/AuthBootstrap";
+import Library from "./pages/library/Library";
 
 function App() {
   const location = useLocation();
@@ -30,6 +32,7 @@ function App() {
   return (
     <HomeInfoProvider>
       <div className="app-container">
+        <AuthBootstrap />
         <main className="content">
           {!isSplashScreen && <Navbar />}
           <Routes>
@@ -38,6 +41,7 @@ function App() {
             <Route path="/:id" element={<AnimeInfo />} />
             <Route path="/watch/:id" element={<Watch />} />
             <Route path="/random" element={<AnimeInfo random={true} />} />
+            <Route path="/library" element={<Library />} />
             <Route path="/404-not-found-page" element={<Error error="404" />} />
             <Route path="/error-page" element={<Error />} />
             {/* Render category routes */}

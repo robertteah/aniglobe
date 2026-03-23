@@ -105,6 +105,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           <ul className="text-white mt-8 w-full">
             {[
               { name: "Home", path: "/home" },
+              { name: "My List", path: "/library" },
               { name: "Subbed Anime", path: "/subbed-anime" },
               { name: "Dubbed Anime", path: "/dubbed-anime" },
               { name: "Most Popular", path: "/most-popular" },

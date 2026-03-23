@@ -30,6 +30,9 @@ import website_name from "@/src/config/website";
 import getChapterStyles from "./getChapterStyle";
 import artplayerPluginHlsControl from "artplayer-plugin-hls-control";
 import artplayerPluginUploadSubtitle from "./artplayerPluginUploadSubtitle";
+import { pb } from "@/src/lib/pocketbase";
+import { useAuthStore } from "@/src/store/authStore";
+import useBookmarks from "@/src/hooks/useBookmarks";
 
 Artplayer.LOG_VERSION = false;
 Artplayer.CONTEXTMENU = false;
@@ -66,12 +69,96 @@ export default function Player({
   const artRef = useRef(null);
   const leftAtRef = useRef(0);
   const boundKeydownRef = useRef(null);
+  const bookmarkIdRef = useRef(null);
+  const watchedRecordIdRef = useRef(null);
+  const lastSyncRef = useRef(0);
+  const hasMetMinWatchTimeRef = useRef(false);
+  const { auth } = useAuthStore();
+  const authRef = useRef(auth);
+  useEffect(() => {
+    authRef.current = auth;
+  }, [auth]);
+  const { createOrUpdateBookMark, syncWatchProgress } = useBookmarks({
+    populate: false,
+  });
+  const pocketbaseEnabled = Boolean(pb.baseUrl);
   const proxyBase = import.meta.env.VITE_PROXY_URL;
   const m3u8ProxyEnv = import.meta.env.VITE_M3U8_PROXY_URL;
   const proxyBaseUri = proxyBase
     ? `${proxyBase.replace(/\/$/, "")}/m3u8-proxy`
     : null;
   const m3u8proxy = (m3u8ProxyEnv ? m3u8ProxyEnv.split(",") : []).filter(Boolean);
+  const episodeKey =
+    animeInfo?.id && episodeId ? `${animeInfo.id}?ep=${episodeId}` : null;
+
+  useEffect(() => {
+    if (!auth || !animeInfo?.id || !episodeId || !pocketbaseEnabled) {
+      bookmarkIdRef.current = null;
+      watchedRecordIdRef.current = null;
+      hasMetMinWatchTimeRef.current = false;
+      return;
+    }
+
+    let mounted = true;
+
+    const fetchBookmarkAndWatched = async () => {
+      const id = await createOrUpdateBookMark(
+        animeInfo.id,
+        animeInfo.title,
+        animeInfo.poster,
+        "watching",
+        false
+      );
+
+      if (!mounted || !id) {
+        bookmarkIdRef.current = null;
+        watchedRecordIdRef.current = null;
+        hasMetMinWatchTimeRef.current = false;
+        return;
+      }
+
+      bookmarkIdRef.current = id;
+      hasMetMinWatchTimeRef.current = false;
+
+      try {
+        const expanded = await pb.collection("bookmarks").getOne(id, {
+          expand: "watchHistory",
+        });
+        if (!mounted) return;
+
+        const history = expanded?.expand?.watchHistory || [];
+        const existing = history.find(
+          (entry) => entry.episodeId === episodeKey
+        );
+
+        if (existing) {
+          watchedRecordIdRef.current = existing.id;
+          hasMetMinWatchTimeRef.current =
+            typeof existing.current === "number" && existing.current >= 10;
+        } else {
+          watchedRecordIdRef.current = null;
+        }
+      } catch (e) {
+        console.error("Error fetching bookmark watch history:", e);
+        watchedRecordIdRef.current = null;
+      }
+    };
+
+    fetchBookmarkAndWatched();
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    auth,
+    animeInfo?.id,
+    animeInfo?.title,
+    animeInfo?.poster,
+    episodeId,
+    episodeKey,
+    createOrUpdateBookMark,
+    pocketbaseEnabled,
+  ]);
 
   const buildProxyUrl = (base, url, referer) => {
     if (!base) return url;
@@ -489,9 +576,44 @@ export default function Player({
       const currentEntry = continueWatchingList.find((item) => item.episodeId === episodeId);
       if (currentEntry?.leftAt) art.currentTime = currentEntry.leftAt;
 
-      art.on("video:timeupdate", () => {
+      const onTimeUpdate = async () => {
         leftAtRef.current = Math.floor(art.currentTime);
-      });
+
+        if (
+          !authRef.current ||
+          !episodeKey ||
+          !bookmarkIdRef.current ||
+          !pocketbaseEnabled
+        ) {
+          return;
+        }
+
+        const current = leftAtRef.current;
+        const duration = Math.floor(art.duration || 0);
+        if (duration <= 0) return;
+        if (current < 10) return;
+
+        const now = Date.now();
+        if (now - lastSyncRef.current < 10000) return;
+        lastSyncRef.current = now;
+
+        const watchedId = await syncWatchProgress(
+          bookmarkIdRef.current,
+          watchedRecordIdRef.current,
+          {
+            episodeId: episodeKey,
+            episodeNumber: episodeNum || 0,
+            current,
+            duration,
+          }
+        );
+
+        if (watchedId) {
+          watchedRecordIdRef.current = watchedId;
+        }
+      };
+
+      art.on("video:timeupdate", onTimeUpdate);
 
       setTimeout(() => {
         art.layers[website_name].style.opacity = 0;
@@ -625,6 +747,25 @@ export default function Player({
       if (fullscreenRefocusTimeout) clearTimeout(fullscreenRefocusTimeout);
 
       try {
+        if (
+          authRef.current &&
+          episodeKey &&
+          bookmarkIdRef.current &&
+          pocketbaseEnabled &&
+          leftAtRef.current > 0
+        ) {
+          void syncWatchProgress(
+            bookmarkIdRef.current,
+            watchedRecordIdRef.current,
+            {
+              episodeId: episodeKey,
+              episodeNumber: episodeNum || 0,
+              current: leftAtRef.current,
+              duration: Math.floor((art?.duration || 0) * 1),
+            }
+          );
+        }
+
         const continueWatching = JSON.parse(localStorage.getItem("continueWatching")) || [];
         const newEntry = {
           id: animeInfo?.id,

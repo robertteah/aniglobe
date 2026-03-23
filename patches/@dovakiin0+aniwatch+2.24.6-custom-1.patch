@@ -1,0 +1,151 @@
+diff --git a/node_modules/@dovakiin0/aniwatch/dist/index.js b/node_modules/@dovakiin0/aniwatch/dist/index.js
+index e7a3cf5..97de087 100644
+--- a/node_modules/@dovakiin0/aniwatch/dist/index.js
++++ b/node_modules/@dovakiin0/aniwatch/dist/index.js
+@@ -428,64 +428,46 @@ async function getMegaCloudClientKey(xrax) {
+   try {
+     const req = await fetch(
+       `https://megacloud.blog/embed-2/v3/e-1/${xrax}`,
+-      { headers: { Referer: "https://hianime.to/" } }
++      {
++        headers: {
++          Referer: SRC_BASE_URL,
++          "User-Agent": USER_AGENT_HEADER,
++          "X-Requested-With": "XMLHttpRequest"
++        }
++      }
+     );
+     text = await req.text();
+-    let regex = [
+-      /<meta name="_gg_fb" content="[a-zA-Z0-9]+">/,
+-      /<!--\s+_is_th:[0-9a-zA-Z]+\s+-->/,
+-      /<script>window._lk_db\s+=\s+\{[xyz]:\s+["''][a-zA-Z0-9]+["''],\s+[xyz]:\s+["''][a-zA-Z0-9]+["''],\s+[xyz]:\s+["''][a-zA-Z0-9]+["'']\};<\/script>/,
+-      /<div\s+data-dpi="[0-9a-zA-Z]+"\s+.*><\/div>/,
+-      /<script nonce="[0-9a-zA-Z]+">/,
+-      /<script>window._xy_ws = ['"`][0-9a-zA-Z]+['"`];<\/script>/
+-    ];
+-    const key = /"[a-zA-Z0-9]+"/;
+-    const lk_db_regex = [
+-      /x:\s+"[a-zA-Z0-9]+"/,
+-      /y:\s+"[a-zA-Z0-9]+"/,
+-      /z:\s+"[a-zA-Z0-9]+"/
++    const directMatches = [
++      /_xy_ws\s*=\s*['"`]([0-9a-zA-Z]+)['"`]/,
++      /_is_th:([0-9a-zA-Z]+)/,
++      /<meta name="_gg_fb" content="([0-9a-zA-Z]+)"/,
++      /data-dpi="([0-9a-zA-Z]+)"/,
++      /nonce="([0-9a-zA-Z]+)"/
+     ];
+-    let pass = null;
+-    let count = 0;
+-    for (let test in regex) {
+-      pass = text.match(regex[test]);
+-      if (pass !== null) {
+-        break;
+-      }
++    for (const re of directMatches) {
++      const m = text.match(re);
++      if (m && m[1]) return m[1];
+     }
+-    if (pass === null) {
+-      throw new Error("Failed extracting client key segment");
+-    }
+-    let clientKey = "";
+-    if (count === 2) {
+-      let x = pass[0].match(lk_db_regex[0]);
+-      if (x === null) throw new Error("Failed building client key (xyz)");
+-      let p1 = x[0].match(key);
+-      if (p1 === null)
+-        throw new Error("Failed building client key (xyz)");
+-      let y = pass[0].match(lk_db_regex[0]);
+-      if (y === null) throw new Error("Failed building client key (xyz)");
+-      let p2 = y[0].match(key);
+-      if (p2 === null)
+-        throw new Error("Failed building client key (xyz)");
+-      let z = pass[0].match(lk_db_regex[0]);
+-      if (z === null) throw new Error("Failed building client key (xyz)");
+-      let p3 = z[0].match(key);
+-      if (p3 === null)
+-        throw new Error("Failed building client key (xyz)");
+-      clientKey = `${p1[0].replaceAll('"', "")}${p2[0].replaceAll('"', "")}${p3[0].replaceAll('"', "")}`;
+-    } else if (count === 1) {
+-      var keytest = pass[0].match(/:[a-zA-Z0-9]+ /);
+-      if (keytest === null)
+-        throw new Error("Failed extracting client key (nonce)");
+-      clientKey = keytest[0].replaceAll(":", "").replaceAll(" ", "");
+-    } else {
+-      var keytest = pass[0].match(key);
+-      if (keytest === null)
+-        throw new Error("Failed extracting client key");
+-      clientKey = keytest[0].replaceAll('"', "");
++    const lkDbMatch = text.match(
++      /window\._lk_db\s*=\s*\{[xyz]:\s+["'][a-zA-Z0-9]+["'],\s+[xyz]:\s+["'][a-zA-Z0-9]+["'],\s+[xyz]:\s+["'][a-zA-Z0-9]+["']\}/
++    );
++    if (lkDbMatch) {
++      const key = /"[a-zA-Z0-9]+"/;
++      const lk_db_regex = [
++        /x:\s+"[a-zA-Z0-9]+"/,
++        /y:\s+"[a-zA-Z0-9]+"/,
++        /z:\s+"[a-zA-Z0-9]+"/
++      ];
++      const parts = lk_db_regex.map((r) => {
++        const seg = lkDbMatch[0].match(r);
++        if (!seg) return "";
++        const val = seg[0].match(key);
++        return val ? val[0].replaceAll('"', "") : "";
++      });
++      const combined = parts.join("");
++      if (combined) return combined;
+     }
+-    return clientKey;
++    throw new Error("Failed extracting client key segment");
+   } catch (err) {
+     throw err;
+   }
+@@ -1984,11 +1966,25 @@ var MegaCloud = class {
+   }
+   async extract5(embedIframeURL) {
+     try {
+-      const response = await axios5.get(
+-        "https://raw.githubusercontent.com/yogesh-hacker/MegacloudKeys/refs/heads/main/keys.json"
+-      );
+-      const key = response.data;
+-      const megacloudKey = key["mega"];
++      let megacloudKey = null;
++      try {
++        const response = await axios5.get(
++          "https://raw.githubusercontent.com/yogesh-hacker/MegacloudKeys/refs/heads/main/keys.json"
++        );
++        const key = response.data;
++        megacloudKey = typeof key === "string" ? key : key?.mega;
++      } catch (_err) {
++        const response = await axios5.get(
++          "https://raw.githubusercontent.com/itzzzme/megacloud-keys/refs/heads/main/key.txt"
++        );
++        megacloudKey = response.data;
++      }
++      if (typeof megacloudKey === "string") {
++        megacloudKey = megacloudKey.trim();
++      }
++      if (!megacloudKey) {
++        throw new Error("Unable to load megacloud key");
++      }
+       const extractedData = {
+         subtitles: [],
+         intro: {
+@@ -2009,7 +2005,14 @@ var MegaCloud = class {
+       if (!clientKey)
+         throw new Error("Unable to extract client key from iframe");
+       const megacloudUrl = `https://megacloud.blog/embed-2/v3/e-1/getSources?id=${sourceId}&_k=${clientKey}`;
+-      const { data: rawSourceData } = await axios5.get(megacloudUrl);
++      const { data: rawSourceData } = await axios5.get(megacloudUrl, {
++        headers: {
++          Accept: "*/*",
++          "X-Requested-With": "XMLHttpRequest",
++          "User-Agent": USER_AGENT_HEADER,
++          Referer: embedIframeURL.href
++        }
++      });
+       let decryptedSources;
+       if (!rawSourceData?.encrypted) {
+         decryptedSources = rawSourceData?.sources;

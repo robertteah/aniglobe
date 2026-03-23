@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faBars,
   faFilm,
+  faList,
   faRandom,
   faStar,
 } from "@fortawesome/free-solid-svg-icons";
@@ -14,6 +15,7 @@ import { SearchProvider } from "@/src/context/SearchContext";
 import WebSearch from "../searchbar/WebSearch";
 import MobileSearch from "../searchbar/MobileSearch";
 import { FaTelegramPlane } from "react-icons/fa";
+import AuthButton from "@/src/components/auth/AuthButton";
 
 function Navbar() {
   const location = useLocation();
@@ -79,11 +81,12 @@ function Navbar() {
           </div>
           <WebSearch />
         </div>
-        <div className="flex gap-x-7 items-center max-lg:hidden">
+        <div className="flex gap-x-7 items-center max-lg:hidden ml-auto">
           {[
             { icon: faRandom, label: "Random", path: "/random" },
             { icon: faFilm, label: "Movie", path: "/movie" },
             { icon: faStar, label: "Popular", path: "/most-popular" },
+            { icon: faList, label: "My List", path: "/library" },
           ].map((item) => (
             <Link
               key={item.path}
@@ -136,8 +139,16 @@ function Navbar() {
             />
             <p className="text-[15px] mb-[1px] text-white">Join Telegram</p>
           </Link>
+          <div className="ml-6">
+            <AuthButton />
+          </div>
         </div>
-        <MobileSearch />
+        <div className="flex items-center gap-x-3 max-lg:w-full max-lg:justify-between ml-auto">
+          <MobileSearch />
+          <div className="lg:hidden">
+            <AuthButton />
+          </div>
+        </div>
       </nav>
       <Sidebar isOpen={isSidebarOpen} onClose={handleCloseSidebar} />
     </SearchProvider>

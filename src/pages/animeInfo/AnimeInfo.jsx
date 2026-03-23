@@ -15,6 +15,8 @@ import Error from "@/src/components/error/Error";
 import { useLanguage } from "@/src/context/LanguageContext";
 import { useHomeInfo } from "@/src/context/HomeInfoContext";
 import Voiceactor from "@/src/components/voiceactor/Voiceactor";
+import useBookmarks from "@/src/hooks/useBookmarks";
+import { useAuthStore } from "@/src/store/authStore";
 
 function InfoItem({ label, value, isProducer = true }) {
   return (
@@ -86,6 +88,12 @@ function AnimeInfo({ random = false }) {
   const [seasons, setSeasons] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { auth } = useAuthStore();
+  const { createOrUpdateBookMark } = useBookmarks({ populate: false });
+  const [listStatus, setListStatus] = useState("watching");
+  const [listMessage, setListMessage] = useState("");
+  const [listLoading, setListLoading] = useState(false);
+  const pocketbaseEnabled = Boolean(import.meta.env.VITE_POCKETBASE_URL);
   const { homeInfo } = useHomeInfo();
   const { id: currentId } = useParams();
   const navigate = useNavigate();
@@ -128,6 +136,33 @@ function AnimeInfo({ random = false }) {
     return undefined;
   }
   const { title, japanese_title, poster, animeInfo: info } = animeInfo;
+  const handleAddToList = async () => {
+    setListMessage("");
+    if (!pocketbaseEnabled) {
+      setListMessage("PocketBase is not configured.");
+      return;
+    }
+    if (!auth) {
+      setListMessage("Please login to add to list.");
+      return;
+    }
+    setListLoading(true);
+    try {
+      const id = await createOrUpdateBookMark(
+        animeInfo.id,
+        title,
+        poster,
+        listStatus,
+        false
+      );
+      setListMessage(id ? "Saved to your list." : "Failed to save.");
+    } catch (e) {
+      console.error(e);
+      setListMessage("Failed to save.");
+    } finally {
+      setListLoading(false);
+    }
+  };
   const tags = [
     {
       condition: info.tvInfo?.rating,
@@ -244,6 +279,29 @@ function AnimeInfo({ random = false }) {
                 <p className="text-lg font-medium">Not released</p>
               </Link>
             )}
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <select
+                className="rounded-md bg-[#2D2B44] px-3 py-2 text-sm text-white outline-none"
+                value={listStatus}
+                onChange={(e) => setListStatus(e.target.value)}
+              >
+                <option value="watching">Watching</option>
+                <option value="completed">Completed</option>
+                <option value="plan_to_watch">Plan to watch</option>
+                <option value="on_hold">On hold</option>
+                <option value="dropped">Dropped</option>
+              </select>
+              <button
+                className="rounded-md bg-[#ffbade] px-4 py-2 text-sm font-semibold text-black hover:bg-[#ff9fcf]"
+                onClick={handleAddToList}
+                disabled={listLoading}
+              >
+                {listLoading ? "Saving..." : "Add to list"}
+              </button>
+              {listMessage && (
+                <span className="text-xs text-white/70">{listMessage}</span>
+              )}
+            </div>
             {info?.Overview && (
               <div className="text-[14px] mt-2 max-[575px]:hidden">
                 {info.Overview.length > 270 ? (
